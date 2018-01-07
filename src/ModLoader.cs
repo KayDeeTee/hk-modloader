@@ -13,11 +13,13 @@ namespace ModLoader
 {
     public class ModLoader : Mod
     {
-
         private static string version = "0.0.1";
         private static UIManager uim;
         private static FauxUIManager fauxUIM;
         public static MenuScreen modMenuScreen;
+
+        public static Selectable[] modArray;
+        public static Selectable back;
 
         public override string GetVersion()
         {
@@ -40,17 +42,47 @@ namespace ModLoader
             Log("Initialized ModLoader");
         }
 
-        public void dataDump(GameObject go, int depth)
+        public static void dataDump(GameObject go, int depth)
         {
-            Log(new String('-', depth) + go.name);
+            Modding.Logger.Log(new String('-', depth) + go.name);
             foreach (Component comp in go.GetComponents<Component>())
             {
-                Log(new String('+', depth) + comp.GetType().ToString());
+                switch (comp.GetType().ToString())
+                {
+                    case "UnityEngine.RectTransform":
+                        Modding.Logger.Log(new String('+', depth) + comp.GetType().ToString() + " : " + ((RectTransform)comp).sizeDelta + ", " + ((RectTransform)comp).anchoredPosition + ", " + ((RectTransform)comp).anchorMin + ", " + ((RectTransform)comp).anchorMax);
+                        break;
+                    case "UnityEngine.UI.Text":
+                        Modding.Logger.Log(new String('+', depth) + comp.GetType().ToString() + " : " + ((Text)comp).text);
+                        break;
+                    default:
+                        Modding.Logger.Log(new String('+', depth) + comp.GetType().ToString());
+                        break;
+                }                  
             }
             foreach (Transform child in go.transform)
             {
                 dataDump(child.gameObject, depth + 1);
             }
+        }
+
+
+        public static Sprite nullSprite()
+        {
+            Texture2D tex = new Texture2D(1, 1);
+            tex.LoadRawTextureData(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF });
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, 1, 1), Vector2.zero);
+        }
+
+        public static Sprite createSprite(byte[] data, int x, int y, int w, int h)
+        {
+            Texture2D tex = new Texture2D(1, 1);
+            tex.LoadImage(data);
+            tex.anisoLevel = 0;
+            int width = tex.width;
+            int height = tex.height;
+            return Sprite.Create(tex, new Rect(x, y, w, h), Vector2.zero);
         }
 
         void sceneLoaded(Scene scene, LoadSceneMode lsm)
@@ -110,56 +142,107 @@ namespace ModLoader
                 GameObject.Destroy(modMenuScreen.defaultHighlight.FindSelectableOnDown().FindSelectableOnDown().gameObject.transform.parent.gameObject);
                 GameObject.Destroy(modMenuScreen.defaultHighlight.FindSelectableOnDown().gameObject.transform.parent.gameObject);
 
-                Selectable deleteAfter = modMenuScreen.defaultHighlight;
+                back = modMenuScreen.defaultHighlight.FindSelectableOnUp();
+                GameObject item = uim.videoMenuScreen.defaultHighlight.FindSelectableOnDown().gameObject;
+                GameObject.DestroyImmediate(item.GetComponent<MenuOptionHorizontal>());
+                GameObject.DestroyImmediate(item.GetComponent<MenuSetting>());
+                GameObject.DestroyImmediate(modMenuScreen.content.GetComponent<VerticalLayoutGroup>());
+                GameObject.Destroy(modMenuScreen.defaultHighlight.gameObject.transform.parent.gameObject);
 
-                Selectable[] modArray = new Selectable[mods.Count];
+                modArray = new Selectable[mods.Count];
 
                 for (int i = 0; i < mods.Count; i++)
                 {
-                    modArray[i] = GameObject.Instantiate(deleteAfter.gameObject.transform.parent).GetChild(0).GetComponent<MenuButton>();
-                    modArray[i].gameObject.transform.parent.SetParent(modMenuScreen.content.transform);
+                    GameObject menuItem = GameObject.Instantiate(item.gameObject);
+                    modArray[i] = menuItem.AddComponent<FauxMenuOptionHorizontal>();
+                    modArray[i].navigation = Navigation.defaultNavigation;
+                    //dataDump(modArray[i].gameObject, 1);                    
 
-                    modArray[i].gameObject.transform.parent.localScale = deleteAfter.transform.parent.localScale;
-                    modArray[i].gameObject.transform.localScale = deleteAfter.transform.localScale;
+                    ((FauxMenuOptionHorizontal)modArray[i]).optionList = new string[] { "On", "Off" };
+                    ((FauxMenuOptionHorizontal)modArray[i]).optionText = modArray[i].gameObject.transform.GetChild(1).GetComponent<Text>();
+                    ((FauxMenuOptionHorizontal)modArray[i]).selectedOptionIndex = 0;
+                    ((FauxMenuOptionHorizontal)modArray[i]).localizeText = false;
+                    ((FauxMenuOptionHorizontal)modArray[i]).sheetTitle = mods[i];
+                    ((FauxMenuOptionHorizontal)modArray[i]).modName = mods[i];
 
-                    modArray[i].gameObject.transform.parent.localPosition = new Vector2(0, 0);
-                    modArray[i].gameObject.transform.localPosition = new Vector2(0, 150);
+                    GameObject.DestroyImmediate(modArray[i].transform.FindChild("Label").GetComponent<AutoLocalizeTextUI>());
+                    modArray[i].transform.FindChild("Label").GetComponent<Text>().text = mods[i];
 
-                    ((MenuButton)modArray[i]).cancelAction = (CancelAction)14;
+                    ((FauxMenuOptionHorizontal)modArray[i]).leftCursor = modArray[i].transform.FindChild("CursorLeft").GetComponent<Animator>();
+                    ((FauxMenuOptionHorizontal)modArray[i]).rightCursor = modArray[i].transform.FindChild("CursorRight").GetComponent<Animator>();
 
-                    AutoLocalizeTextUI localizeUI = modArray[i].GetComponent<AutoLocalizeTextUI>();
-                    localizeUI.textField.text = mods[i];
-                    GameObject.Destroy(localizeUI);
+                    modArray[i].gameObject.name = mods[i];
+
+                    RectTransform rt = menuItem.GetComponent<RectTransform>();
+
+                    rt.SetParent(modMenuScreen.content.transform);
+                    rt.localScale = new Vector3(2, 2, 2);
+
+                    rt.sizeDelta = new Vector2(960, 120);
+                    rt.anchoredPosition = new Vector2(0, (766/2) - 90 - (150 * i));
+                    rt.anchorMin = new Vector2(0.5f, 1.0f);
+                    rt.anchorMax = new Vector2(0.5f, 1.0f);
+
+                    //Image img = menuItem.AddComponent<Image>();
+                    //img.sprite = nullSprite();
+
+
+                    ((FauxMenuOptionHorizontal)modArray[i]).cancelAction = CancelAction.DoNothing;
+                   
+
+                    //AutoLocalizeTextUI localizeUI = modArray[i].GetComponent<AutoLocalizeTextUI>();
+                    //modArray[i].transform.GetChild(0).GetComponent<Text>().text = mods[i];
+                    //GameObject.Destroy(localizeUI);
                 }
 
-                for (int i = 0; i < mods.Count; i++)
+                Navigation[] navs = new Navigation[modArray.Length];
+                for (int i = 0; i < ModLoader.modArray.Length; i++)
                 {
-                    Navigation navi = modArray[i].navigation;
+                    navs[i] = new Navigation();
+                    navs[i].mode = Navigation.Mode.Explicit;
+
                     if (i == 0)
-                        navi.selectOnUp = deleteAfter.FindSelectableOnUp();
+                    {
+                        navs[i].selectOnUp = ModLoader.back;
+                    }
                     else
-                        navi.selectOnUp = modArray[i - 1];
-                    if (i == mods.Count - 1)
-                        navi.selectOnDown = deleteAfter.FindSelectableOnUp();
+                    {
+                        navs[i].selectOnUp = ModLoader.modArray[i - 1];
+                    }
+                    if (i == ModLoader.modArray.Length - 1)
+                    {
+                        navs[i].selectOnDown = ModLoader.back;
+                    }
                     else
-                        navi.selectOnDown = modArray[i + 1];
-                    modArray[i].navigation = navi;
+                    {
+                        navs[i].selectOnDown = ModLoader.modArray[i + 1];
+                    }
+
+                    ModLoader.modArray[i].navigation = navs[i];
                 }
+                ModLoader.modMenuScreen.defaultHighlight = ModLoader.modArray[0];
+                Navigation nav2 = ModLoader.back.navigation;
+                nav2.selectOnUp = ModLoader.modArray[ModLoader.modArray.Length - 1];
+                nav2.selectOnDown = ModLoader.modArray[0];
+                ModLoader.back.navigation = nav2;
 
-                modMenuScreen.defaultHighlight = modArray[0];
-                Navigation nav2 = modArray[0].FindSelectableOnUp().navigation;
-                nav2.selectOnUp = modArray[modArray.Length - 1];
-                nav2.selectOnDown = modArray[0];
-                modArray[0].FindSelectableOnUp().navigation = nav2;
-                ((MenuButton)modArray[0].FindSelectableOnUp()).cancelAction = (CancelAction)14;
+                ((MenuButton)back).cancelAction = CancelAction.DoNothing;
+                EventTrigger back_events = back.gameObject.GetComponent<EventTrigger>();
 
-                GameObject.Destroy(deleteAfter.gameObject);
+                back_events.triggers = new List<EventTrigger.Entry>();
 
-                dataDump(modMenuScreen.gameObject, 1);
+                EventTrigger.Entry back_submit = new EventTrigger.Entry();
+                back_submit.eventID = EventTriggerType.Submit;
+                back_submit.callback.AddListener((data) => { fauxUIM.UIquitModMenu(); });
+                back_events.triggers.Add(back_submit);
 
-                //dataDump(uim.optionsMenuScreen.gameObject, 1);
+                EventTrigger.Entry back_click = new EventTrigger.Entry();
+                back_click.eventID = EventTriggerType.PointerClick;
+                back_click.callback.AddListener((data) => { fauxUIM.UIquitModMenu(); });
+                back_events.triggers.Add(back_click);
+
+
                 //SETUP MOD MENU
-
 
                 //SETUP MOD BUTTON TO RESPOND TO SUBMIT AND CANCEL EVENTS CORRECTLY
                 EventTrigger events = modButton.gameObject.GetComponent<EventTrigger>();
@@ -170,8 +253,11 @@ namespace ModLoader
                 submit.eventID = EventTriggerType.Submit;
                 submit.callback.AddListener((data) => { fauxUIM.UIloadModMenu(); });
                 events.triggers.Add(submit);
-                submit.eventID = EventTriggerType.PointerClick;
-                events.triggers.Add(submit);
+
+                EventTrigger.Entry click = new EventTrigger.Entry();
+                click.eventID = EventTriggerType.PointerClick;
+                click.callback.AddListener((data) => { fauxUIM.UIloadModMenu(); });
+                events.triggers.Add(click);
 
                 //SETUP MOD BUTTON TO RESPOND TO SUBMIT AND CANCEL EVENTS CORRECTLY
             }

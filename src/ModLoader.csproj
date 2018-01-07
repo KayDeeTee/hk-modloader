@@ -63,6 +63,7 @@
     <Reference Include="UnityEngine">
       <HintPath>UnityEngine.dll</HintPath>
     </Reference>
+    <Compile Include="FauxMenuOptionHorizontal.cs" />
     <Compile Include="FauxUIManager.cs" />
     <Compile Include="ModLoader.cs" />
   </ItemGroup>

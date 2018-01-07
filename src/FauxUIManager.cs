@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace ModLoader
 {
@@ -145,6 +146,11 @@ namespace ModLoader
         public void UIloadModMenu()
         {
             base.StartCoroutine(this.loadModMenu());
+        }
+
+        public void UIquitModMenu()
+        {
+            base.StartCoroutine(this.quitModMenu());
         }
 
         public IEnumerator loadModMenu()
